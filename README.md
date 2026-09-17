@@ -2,6 +2,11 @@
 
 > 桌面电子磕头神器 —— 一个用 Electron 写的透明置顶桌面宠物。点小人磕头、上香，攒功德、升境界。
 
+![License](https://img.shields.io/badge/license-MIT-yellow.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4.svg)
+![Electron](https://img.shields.io/badge/Electron-38-47848F.svg?logo=electron&logoColor=white)
+![Dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)
+
 <p align="center">
   <img src="docs/images/hero.png" width="240" alt="赛博朝拜">
 </p>
@@ -33,7 +38,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/<owner>/cyber-worship.git
+git clone https://github.com/kidkid/cyber-worship.git
 cd cyber-worship
 npm install
 npm start
