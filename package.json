@@ -1,0 +1,44 @@
+{
+  "name": "cyber-worship",
+  "version": "1.0.0",
+  "description": "赛博朝拜 - 桌面电子磕头神器",
+  "main": "main.js",
+  "author": "Cyber Worship",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^38.8.6",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.cyber.worship",
+    "productName": "赛博朝拜",
+    "artifactName": "${productName}_免安装版.${ext}",
+    "compression": "maximum",
+    "afterPack": "tools/after_pack.js",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "renderer.js",
+      "hitmaps.js",
+      "styles.css",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "executableName": "cyber-worship"
+    },
+    "portable": {
+      "artifactName": "赛博朝拜_免安装版.${ext}",
+      "requestExecutionLevel": "user"
+    }
+  }
+}

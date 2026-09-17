@@ -1,0 +1,529 @@
+/* ============================================================
+   赛博朝拜 · 桌面宠物
+   窗口本身完全透明，所有视觉都靠这里的图层堆出来
+
+   版面常量说明（改一处要同步其余）：
+     main.js     BASE_W / BASE_H（窗口基准尺寸）
+     styles.css  下面的布局变量
+     renderer.js GOD_CX / GOD_BOTTOM_Y / ALTAR_CX / ALTAR_BOTTOM_Y / PERSON_*
+     tools/layout_mock.py  同名常量，用来在改版式前先出效果图
+
+   构图：素材里的人物是「侧面朝右」的跪姿，所以神位与香案摆在他的右前方，
+   这样他才是朝着神拜；早先把神位摆在他正上方，看起来就成了往右边拜。
+   ============================================================ */
+
+:root {
+  /* 必须与 main.js 的 BASE_W / BASE_H 一致 */
+  --w: 400px;
+  --h: 460px;
+
+  /* 神位 / 香案 / 人物 的位置 */
+  --god-cx: 248px;          /* 神像水平中心 */
+  --god-bottom: 190px;      /* 神像底边 */
+  --altar-cx: 248px;        /* 香案水平中心 */
+  --altar-bottom: 420px;    /* 香案底边 */
+  --person-left: 14px;      /* 人物画布左边 */
+  --person-top: 220px;      /* 人物画布顶边 */
+  --person-w: 194px;        /* 人物画布宽 */
+  --shadow-cx: 78px;        /* 落地阴影中心 */
+  --shadow-top: 406px;
+  --shadow-w: 112px;
+
+  --gold: #f2c75c;
+  --gold-deep: #c8952f;
+  --gold-soft: rgba(242, 199, 92, 0.55);
+  --ink: #0b0a10;
+  --panel: rgba(18, 15, 26, 0.86);
+  --panel-2: rgba(30, 24, 42, 0.92);
+  --line: rgba(242, 199, 92, 0.28);
+  --text: #f4ead6;
+  --text-dim: rgba(244, 234, 214, 0.62);
+  --jade: #46c08a;
+  --red: #e2453c;
+  --accent: #f2c75c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  cursor: default;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#stage {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+}
+
+/* 拖拽区：抓到神像/香案/功德牌都能挪窗口。
+   注意：可点的操作面板（场景条、工具列）**不能**设成拖拽区，
+   Windows 上拖拽区会把点击交给系统去拖窗口，按钮就点不动了。 */
+.drag { -webkit-app-region: drag; }
+button, .chip { -webkit-app-region: no-drag; }
+
+/* ---------------------------------------------------------- 氛围 */
+
+#halo {
+  position: absolute;
+  left: var(--god-cx);
+  top: -60px;
+  width: 340px;
+  height: 340px;
+  margin-left: -170px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(circle at 50% 50%,
+              color-mix(in srgb, var(--accent) 26%, transparent) 0%,
+              color-mix(in srgb, var(--accent) 11%, transparent) 44%,
+              transparent 72%);
+  filter: blur(6px);
+  opacity: 0.9;
+  animation: haloBreath 5.5s ease-in-out infinite;
+  transition: background 0.6s ease;
+}
+
+@keyframes haloBreath {
+  0%, 100% { transform: scale(1); opacity: 0.78; }
+  50%      { transform: scale(1.07); opacity: 1; }
+}
+
+/* ---------------------------------------------------------- 神位 */
+
+#god {
+  position: absolute;
+  left: var(--god-cx);
+  top: calc(var(--god-bottom) - 160px);   /* 兜底值，实际由 renderer.js 算 */
+  transform: translateX(-50%);
+  width: 150px;
+  z-index: 2;
+  pointer-events: auto;
+  /* 用独立动画属性 translate，避免和 translateX(-50%) 抢 transform */
+  animation: godFloat 4.2s ease-in-out infinite;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+  transition: width 0.35s ease;
+}
+
+@keyframes godFloat {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -7px; }
+}
+
+/* ---------------------------------------------------------- 香烟
+   层级放在神像/香案之下：透明区域不会遮挡，但烟柱会自然地从供品后面升起
+   ---------------------------------------------------------- */
+
+#smokeLayer {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  width: 78px;
+  height: 150px;
+  transition: left 0.4s ease, top 0.4s ease;
+}
+
+.smoke {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  opacity: 0;
+  /* 透明窗口下不用 mix-blend-mode（没有可靠的背景可混合），改用暖色滤镜 */
+  filter: sepia(0.45) brightness(1.55) saturate(1.2)
+          drop-shadow(0 0 7px rgba(255, 240, 205, 0.55));
+  animation: smokeRise 6s linear infinite;
+}
+
+.smoke.s2 { animation-delay: 2s;  width: 82%; left: 14%; }
+.smoke.s3 { animation-delay: 4s;  width: 70%; left: 4%; }
+
+@keyframes smokeRise {
+  0%   { opacity: 0;    transform: translateY(10px)  scaleX(0.85) rotate(0deg); }
+  15%  { opacity: 0.6; }
+  55%  { opacity: 0.42; transform: translateY(-80px) scaleX(1)    rotate(4deg); }
+  100% { opacity: 0;    transform: translateY(-165px) scaleX(1.2) rotate(-5deg); }
+}
+
+/* ---------------------------------------------------------- 香案 */
+
+#altar {
+  position: absolute;
+  left: var(--altar-cx);
+  top: calc(var(--altar-bottom) - 218px);  /* 兜底值，实际由 renderer.js 算 */
+  transform: translateX(-50%);
+  width: 206px;
+  z-index: 4;
+  pointer-events: auto;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
+  transition: width 0.35s ease;
+}
+
+/* ---------------------------------------------------------- 人 与 影 */
+
+#shadow {
+  position: absolute;
+  left: var(--shadow-cx);
+  top: var(--shadow-top);
+  width: var(--shadow-w);
+  height: 24px;
+  margin-left: calc(var(--shadow-w) / -2);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+              rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.16) 55%, transparent 72%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+#person {
+  position: absolute;
+  left: var(--person-left);
+  top: var(--person-top);
+  width: var(--person-w);
+  /* 定位用 left/top，把 transform 完整留给抖动/眩晕动画 */
+  z-index: 6;
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: 50% 92%;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+}
+
+#person.frenzy { animation: personShake 0.13s linear infinite; }
+
+@keyframes personShake {
+  0%, 100% { transform: rotate(-1.4deg); }
+  50%      { transform: rotate(1.4deg); }
+}
+
+#person.dizzy { animation: dizzyWobble 0.5s ease-in-out infinite; filter: grayscale(0.55) drop-shadow(0 4px 10px rgba(0,0,0,0.4)); }
+
+@keyframes dizzyWobble {
+  0%, 100% { transform: rotate(-5deg); }
+  50%      { transform: rotate(5deg); }
+}
+
+/* 点击涟漪 */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  pointer-events: none;
+  z-index: 20;
+  animation: rippleOut 0.5s ease-out forwards;
+}
+
+@keyframes rippleOut {
+  0%   { width: 20px; height: 20px; opacity: 0.9; margin: -10px 0 0 -10px; }
+  100% { width: 130px; height: 130px; opacity: 0; margin: -65px 0 0 -65px; }
+}
+
+/* ---------------------------------------------------------- 特效层 */
+
+#fx {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.float-txt {
+  position: absolute;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  color: var(--gold);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.95), 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.coin-fly {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 0 6px rgba(255, 205, 80, 0.75));
+}
+
+/* ---------------------------------------------------------- 总功德 + 境界（右下角常驻） */
+
+#badge {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 12px 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(38, 30, 16, 0.92), rgba(20, 15, 10, 0.92));
+  border: 1px solid var(--gold-soft);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 0 14px rgba(242, 199, 92, 0.12);
+  opacity: 0.74;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#badge:hover { opacity: 1; }
+/* 注意：这里刻意不做 translate/scale 位移。
+   面板的命中区是按盒模型算的，一旦悬停时盒子移动，就会出现
+   "命中 -> 显示 -> 移开 -> 不命中 -> 隐藏 -> 又命中" 的闪烁循环。 */
+
+#badge .label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+#badge b {
+  font-size: 18px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(242, 199, 92, 0.55);
+}
+
+#rankName {
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+
+#badge.bump { animation: badgeBump 0.28s ease-out; }
+
+@keyframes badgeBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------------------------------------------------- 场景切换
+   面板"悬停才显示"，但**始终可点**（pointer-events 不能为 none）：
+   否则"悬停才出现 / 又要求先悬停"会互锁，导致永远点不到场景按钮。
+   ---------------------------------------------------------- */
+
+#bar {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 40;
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: auto;              /* 关键：隐藏时也要能点到 */
+  transition: opacity 0.18s ease;
+}
+
+.chip {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.chip:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+
+.chip.on {
+  color: #1a1206;
+  font-weight: 700;
+  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* ---------------------------------------------------------- 操作按钮（右上，悬停显示、始终可点） */
+
+#tools {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  opacity: 0;
+  pointer-events: auto;              /* 关键：隐藏时也要能点到 */
+  transition: opacity 0.18s ease;
+}
+
+.tbtn {
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.16s ease;
+}
+
+.tbtn:hover {
+  border-color: var(--gold-soft);
+  color: var(--gold);
+  transform: translateX(-3px);
+}
+
+.tbtn.danger:hover { color: var(--red); border-color: rgba(226, 69, 60, 0.7); }
+
+/* 缩小 / 放大：中间显示当前百分比 */
+.zoomrow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.tbtn.tiny {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tbtn.tiny:hover { transform: none; }
+
+.zoomval {
+  min-width: 34px;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--gold);
+}
+
+/* ---------------------------------------------------------- 提示（左下，悬停显示） */
+
+#rank {
+  position: absolute;
+  left: 12px;
+  bottom: 13px;
+  z-index: 40;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;              /* 纯提示，不参与命中判定 */
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+}
+
+/* 悬停宠物时浮出的 UI */
+#stage.hover-ui #bar,
+#stage.hover-ui #tools,
+#stage.hover-ui #rank {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------- 提示气泡
+   放左上角（场景条正下方）：
+   版面里只有「左上 / 神像左侧」这块是空的。早先放在底部居中，
+   切场景时"考研 · 文昌帝君"这行字正好压在小人头上，看着就像
+   人物被香案挡住了 —— 其实只是气泡挡的。
+   ---------------------------------------------------------- */
+
+#toast {
+  position: absolute;
+  left: 12px;
+  top: 52px;
+  transform: translateY(6px);
+  z-index: 50;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  color: #ffd98a;
+  background: rgba(20, 14, 8, 0.92);
+  border: 1px solid rgba(242, 199, 92, 0.5);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* ---------------------------------------------------------- 右键菜单 */
+
+#menu {
+  position: absolute;
+  z-index: 60;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  display: none;
+}
+
+#menu.show { display: block; animation: menuIn 0.14s ease-out; }
+
+@keyframes menuIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+#menu .mi {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+#menu .mi:hover { background: rgba(242, 199, 92, 0.14); color: var(--gold); }
+#menu .mi.on::after { content: "✓"; color: var(--gold); }
+#menu .mi.dim { color: var(--text-dim); cursor: default; font-size: 11px; letter-spacing: 1px; }
+#menu .mi.dim:hover { background: transparent; color: var(--text-dim); }
+#menu .mi.sep {
+  height: 1px;
+  padding: 0;
+  margin: 5px 8px;
+  background: var(--line);
+  pointer-events: none;
+}

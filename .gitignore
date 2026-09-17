@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+package-lock.json.bak
+
+# 打包产物
+dist/
+dist-*/
+release/
+build/
+*.exe
+*.blockmap
+*.yml
+
+# 素材处理过程中的中间产物
+_raw/
+_full/
+_frames_raw/
+_preview/
+*.log
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

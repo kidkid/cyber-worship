@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';">
+<title>赛博朝拜</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="stage">
+
+    <!-- 佛光 / 底座氛围 -->
+    <div id="halo"></div>
+
+    <!-- 神位 -->
+    <img id="god" class="hit drag" data-hit="god_caishen" alt="">
+
+    <!-- 香烟 -->
+    <div id="smokeLayer">
+      <img class="smoke s1" src="assets/images/smoke.png" alt="">
+      <img class="smoke s2" src="assets/images/smoke.png" alt="">
+      <img class="smoke s3" src="assets/images/smoke.png" alt="">
+    </div>
+
+    <!-- 香案供桌 -->
+    <img id="altar" class="hit drag" data-hit="altar_wealth" alt="">
+
+    <!-- 人物落地阴影 -->
+    <div id="shadow"></div>
+
+    <!-- 磕头的人 -->
+    <img id="person" class="hit" data-hit="kowtow_1" alt="">
+
+    <!-- 漂浮文字 / 金币特效层 -->
+    <div id="fx"></div>
+
+    <!-- 总功德 + 境界（右下角常驻） -->
+    <div id="badge" class="hit drag" title="拖我可以挪动宠物 · 右键看菜单">
+      <span class="label">总功德</span>
+      <b id="merit">0</b>
+      <span class="label" id="rankName">凡人</span>
+    </div>
+
+    <!-- 场景切换（悬停浮出） -->
+    <div id="bar" class="hit">
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <!-- 操作按钮（悬停浮出） -->
+    <div id="tools" class="hit">
+      <button class="tbtn" id="btnOffer" title="上香（一次 +10 功德）">上香 +10</button>
+      <div class="zoomrow">
+        <button class="tbtn tiny" id="btnZoomOut" title="缩小宠物（Ctrl + 滚轮下）">－</button>
+        <span class="zoomval" id="zoomVal">80%</span>
+        <button class="tbtn tiny" id="btnZoomIn" title="放大宠物（Ctrl + 滚轮上）">＋</button>
+      </div>
+      <button class="tbtn" id="btnHide" title="隐藏宠物（老板键 Ctrl + Alt + H）">隐藏</button>
+      <button class="tbtn danger" id="btnQuit" title="退出赛博朝拜">退出</button>
+    </div>
+
+    <!-- 提示（悬停浮出） -->
+    <div id="rank">点小人磕头 · 空格同效 · 右键菜单</div>
+
+    <!-- 提示气泡 -->
+    <div id="toast"></div>
+
+    <!-- 右键菜单 -->
+    <div id="menu" class="hit"></div>
+  </div>
+
+  <script src="hitmaps.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
